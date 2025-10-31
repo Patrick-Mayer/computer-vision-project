@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import models
+from torchvision import transforms
+from PIL import Image
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Basic 3 pooling U-net model
 class UNet(nn.Module):
@@ -84,8 +87,57 @@ class UNet(nn.Module):
         x = self.outconv(xd6)
 
         return x
+
+# Testing model
+def predict_and_visualize(img_path, n_class=1):
+    model = UNet(n_class=n_class)
+    model.eval()
     
-model = UNet(n_class=2)
-x = torch.randn(1, 3, 256, 256)  # batch of 1 RGB image
-y = model(x)
-print(y.shape)
+    img = Image.open(img_path).convert("RGB")
+
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor(),
+    ])
+
+    input_tensor = transform(img).unsqueeze(0)
+
+    with torch.no_grad():
+        output = model(input_tensor)
+
+        if n_class == 1:
+            # Binary segmentation
+            pred_mask = torch.sigmoid(output)
+            pred_mask = (pred_mask > 0.5).float().squeeze().cpu().numpy()
+        else:
+            # Multi-class segmentation
+            pred_mask = torch.softmax(output, dim=1)
+            pred_mask = torch.argmax(pred_mask, dim=1).squeeze().cpu().numpy()
+
+    # --- Visualization ---
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.title("Original Image")
+    plt.imshow(img)
+    plt.axis("off")
+
+    plt.subplot(1, 2, 2)
+    plt.title("Predicted Mask (Segmentation)")
+
+    if n_class == 1:
+        plt.imshow(pred_mask, cmap="gray")
+    else:
+        # Color map for 3 classes
+        colors = np.array([
+            [0, 0, 0],       # Class 0 - black
+            [255, 0, 0],     # Class 1 - red
+            [0, 255, 0],     # Class 2 - green
+        ], dtype=np.uint8)
+        color_mask = colors[pred_mask]
+        plt.imshow(color_mask)
+    plt.axis("off")
+    plt.show()
+
+# This model is untrained, so we just get a black box output
+# Multi-class segmentation
+predict_and_visualize("chihuahua.png", n_class=3)
