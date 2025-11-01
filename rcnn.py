@@ -50,6 +50,6 @@ plt.imshow(img)
 plt.axis("off")
 
 plt.subplot(1, 2, 2)
-plt.title("Pedicted Mask (Segmented)")
+plt.title("Predicted Mask (Segmented)")
 plt.imshow(pred_mask)
 plt.show()
