@@ -96,10 +96,11 @@ def get_objs(og_width, og_height, preds, img, crop_dir):
             obj_labels.append(label_name)
             obj_files.append(f"cropped_mask_{label_name}_{i+1}.png")
 
-    # Save background, but don't include it as an object
+    # Save background
     save_background(img, all_foreground_masks_np, og_width, og_height, crop_dir)
-    obj_labels.append("unknown")
-    obj_files.append(f"background.png")
+    # comment these 2 lines to exlude backgroung
+    #obj_labels.append("unknown")
+    #obj_files.append(f"background.png")
 
     return obj_files, obj_labels
 
@@ -160,8 +161,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
-img1_name = "chihuahua.png"
-img2_name = "kitty.png"
+img1_name = "kitty.png"
+img2_name = "cow.png"
 
 img1 = Image.open(img1_name).convert("RGB")
 
@@ -210,7 +211,7 @@ for i, file1 in enumerate(obj_list1):
             sim_text = 0
         else:
             sim_text = (text_embs1[i] @ text_embs2[j]).item()
-        sim_combined = 0.7 * sim_img + 0.3 * sim_text
+        sim_combined = 0.6 * sim_img + 0.4 * sim_text # Adjust strength of img score vs text score
 
         similarity_list.append({
             "img1": file1,
