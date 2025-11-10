@@ -7,17 +7,6 @@ import numpy as np
 import os
 from torchvision.models.detection import maskrcnn_resnet50_fpn_v2, MaskRCNN_ResNet50_FPN_V2_Weights
 
-def img_tensor(img, og_width, og_height):
-    # Values are resizing
-
-    model_input_size = 256
-    width_scale = og_width / model_input_size
-    height_scale = og_height / model_input_size
-
-    input_tensor = transform(img).unsqueeze(0)
-
-    return input_tensor
-
 def get_predictions(image_tensor):
     with torch.no_grad():
         outputs = detector(image_tensor)[0]
@@ -102,7 +91,7 @@ def get_objs(og_width, og_height, preds, img, crop_dir):
             # Total area of objects 
             objects.append(obj) 
             all_foreground_masks_np = np.logical_or(all_foreground_masks_np, obj) 
-            
+
     save_background(img, all_foreground_masks_np, og_width, og_height, crop_dir) 
     return objects
 
@@ -133,14 +122,15 @@ def save_background(og_img, accumulated_mask_np, og_width, og_height, crop_dir):
     save_path = os.path.join(crop_dir, "background.png")
     cropped_background.save(save_path)
 
-def get_clip_embeddings(crops):
-    """Encode object crops using CLIP."""
-    tensors = [preprocess(c).unsqueeze(0).to(device) for c in crops]
-    imgs = torch.cat(tensors)
-    with torch.no_grad():
-        feats = clip_model.encode_image(imgs)
-    feats /= feats.norm(dim=-1, keepdim=True)
-    return feats
+def gather_imgs(crop_dir):
+    file_list = []
+    for item in os.listdir(crop_dir):
+        full_path = os.path.join(crop_dir, item)
+
+        if os.path.isfile(full_path):
+            file_list.append(item)
+
+    return file_list
 
 weights = MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT
 detector = maskrcnn_resnet50_fpn_v2(weights=weights).eval()
@@ -153,9 +143,9 @@ transform = transforms.Compose([
 device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
-# Update test image
+# Update test images
 img1_name = "chihuahua.png"
-img2_name = "cow.png"
+img2_name = "kitty.png"
 
 img1 = Image.open(img1_name).convert("RGB")
 
@@ -170,8 +160,8 @@ os.makedirs(crop_dir2, exist_ok=True)
 og_width1, og_height1 = img1.size
 og_width2, og_height2 = img2.size
 
-input_tensor1 = img_tensor(img1, og_width1, og_height1)
-input_tensor2 = img_tensor(img2, og_width2, og_height2)
+input_tensor1 = transform(img1).unsqueeze(0)
+input_tensor2 = transform(img2).unsqueeze(0)
 
 preds1 = get_predictions(input_tensor1)
 preds2 = get_predictions(input_tensor2)
@@ -179,13 +169,36 @@ preds2 = get_predictions(input_tensor2)
 objs1 = get_objs(og_width1, og_height1, preds1, img1, crop_dir1)
 objs2 = get_objs(og_width2, og_height2, preds2, img2, crop_dir2)
 
-"""
-emb1 = get_clip_embeddings(objs1)
-emb2 = get_clip_embeddings(objs2)
+obj_list1 = gather_imgs(crop_dir1)
+obj_list2 = gather_imgs(crop_dir2)
 
-similarity_matrix = emb1 @ emb2.T
+similarity_list = []
 
-best_match_indices = torch.argmax(similarity_matrix, dim=1)
-for i, j in enumerate(best_match_indices):
-    print(f"Image1 object {i} ↔ Image2 object {j} | Similarity = {similarity_matrix[i, j]:.2f}")
-"""
+for file1 in obj_list1:
+    img_proc1 = preprocess(Image.open(os.path.join(crop_dir1, file1)).convert("RGB")).unsqueeze(0).to(device)
+
+    for file2 in obj_list2:
+        img_proc2 = preprocess(Image.open(os.path.join(crop_dir2, file2)).convert("RGB")).unsqueeze(0).to(device)
+        # Get embeddings
+        with torch.no_grad():
+            emb1 = clip_model.encode_image(img_proc1)
+            emb2 = clip_model.encode_image(img_proc2)
+
+        # Normalize and compare
+        emb1 /= emb1.norm(dim=-1, keepdim=True)
+        emb2 /= emb2.norm(dim=-1, keepdim=True)
+        # Cosine similarity Ab / ||A||||B||
+        similarity = (emb1 @ emb2.T).item()
+
+        similarity_list.append({
+            "img1": file1,
+            "img2": file2,
+            "similarity": similarity
+        })
+
+similarity_list.sort(key=lambda x: x["similarity"], reverse=True)
+
+# Display top results
+print("\nTop object similarities:")
+for s in similarity_list[:10]:
+    print(f"{s['img1']} ↔ {s['img2']} | Similarity: {s['similarity']:.3f}")
