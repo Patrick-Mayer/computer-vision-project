@@ -57,7 +57,10 @@ def apply_mask_and_save_refined(og_img, mask_tensor, label_name, index, is_backg
     crop_area_tight = (xmin, ymin, xmax, ymax)
     
     # Crop!
-    cropped_object = masked_img_pil.crop(crop_area_tight)
+    cropped_object = masked_img_pil.crop(crop_area_tight).convert("RGBA")
+    # Handle transparency
+    background = Image.new("RGB", cropped_object.size, (255, 255, 255))  # white background
+    background.paste(cropped_object, mask=cropped_object.split()[3])  # use alpha channel
     
     # Results
     if is_background:
@@ -70,30 +73,36 @@ def apply_mask_and_save_refined(og_img, mask_tensor, label_name, index, is_backg
     
     return binary_mask
 
-def get_objs(og_width, og_height, preds, img, crop_dir): 
-    all_foreground_masks_np = np.zeros((og_height, og_width), dtype=bool) 
-    objects = [] 
+def get_objs(og_width, og_height, preds, img, crop_dir):
+    all_foreground_masks_np = np.zeros((og_height, og_width), dtype=bool)
+    obj_labels = []
+    obj_files = []
 
-    for i in range(len(preds["boxes"])): 
-        label_name = weights.meta['categories'][preds["labels"][i].item()] # Get and save the refined foreground objects 
+    for i in range(len(preds["boxes"])):
+        label_name = weights.meta['categories'][preds["labels"][i].item()]
+        mask = apply_mask_and_save_refined(
+            img,
+            preds["masks"][i],
+            label_name,
+            i + 1,
+            False,
+            crop_dir,
+            og_width,
+            og_height
+        )
 
-        obj = apply_mask_and_save_refined( 
-            img, 
-            preds["masks"][i], 
-            label_name, 
-            i+1, 
-            False, 
-            crop_dir, 
-            og_width, 
-            og_height ) 
-        
-        if obj is not None: 
-            # Total area of objects 
-            objects.append(obj) 
-            all_foreground_masks_np = np.logical_or(all_foreground_masks_np, obj) 
+        if mask is not None:
+            all_foreground_masks_np = np.logical_or(all_foreground_masks_np, mask)
+            obj_labels.append(label_name)
+            obj_files.append(f"cropped_mask_{label_name}_{i+1}.png")
 
-    save_background(img, all_foreground_masks_np, og_width, og_height, crop_dir) 
-    return objects
+    # Save background, but don't include it as an object
+    save_background(img, all_foreground_masks_np, og_width, og_height, crop_dir)
+    obj_labels.append("unknown")
+    obj_files.append(f"background.png")
+
+    return obj_files, obj_labels
+
 
 def save_background(og_img, accumulated_mask_np, og_width, og_height, crop_dir):
     # Find tight bounds for the background area
@@ -132,6 +141,13 @@ def gather_imgs(crop_dir):
 
     return file_list
 
+def encode_labels_as_text(labels):
+    text_tokens = clip.tokenize([f"a photo of a {lbl}" for lbl in labels]).to(device)
+    with torch.no_grad():
+        text_embs = clip_model.encode_text(text_tokens)
+    text_embs /= text_embs.norm(dim=-1, keepdim=True)
+    return text_embs
+
 weights = MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT
 detector = maskrcnn_resnet50_fpn_v2(weights=weights).eval()
 
@@ -166,39 +182,58 @@ input_tensor2 = transform(img2).unsqueeze(0)
 preds1 = get_predictions(input_tensor1)
 preds2 = get_predictions(input_tensor2)
 
-objs1 = get_objs(og_width1, og_height1, preds1, img1, crop_dir1)
-objs2 = get_objs(og_width2, og_height2, preds2, img2, crop_dir2)
+obj_list1, labels1 = get_objs(og_width1, og_height1, preds1, img1, crop_dir1)
+obj_list2, labels2 = get_objs(og_width2, og_height2, preds2, img2, crop_dir2)
 
-obj_list1 = gather_imgs(crop_dir1)
-obj_list2 = gather_imgs(crop_dir2)
+# obj_list1 = gather_imgs(crop_dir1)
+# obj_list2 = gather_imgs(crop_dir2)
+
+text_embs1 = encode_labels_as_text(labels1)
+text_embs2 = encode_labels_as_text(labels2)
 
 similarity_list = []
 
-for file1 in obj_list1:
+for i, file1 in enumerate(obj_list1):
     img_proc1 = preprocess(Image.open(os.path.join(crop_dir1, file1)).convert("RGB")).unsqueeze(0).to(device)
+    with torch.no_grad():
+        emb1 = clip_model.encode_image(img_proc1)
+    emb1 /= emb1.norm(dim=-1, keepdim=True)
 
-    for file2 in obj_list2:
+    for j, file2 in enumerate(obj_list2):
         img_proc2 = preprocess(Image.open(os.path.join(crop_dir2, file2)).convert("RGB")).unsqueeze(0).to(device)
-        # Get embeddings
         with torch.no_grad():
-            emb1 = clip_model.encode_image(img_proc1)
             emb2 = clip_model.encode_image(img_proc2)
-
-        # Normalize and compare
-        emb1 /= emb1.norm(dim=-1, keepdim=True)
         emb2 /= emb2.norm(dim=-1, keepdim=True)
-        # Cosine similarity Ab / ||A||||B||
-        similarity = (emb1 @ emb2.T).item()
+
+        sim_img = (emb1 @ emb2.T).item()
+        if (text_embs1[i] == "unknown" or text_embs2[j] == "unknown"):
+            sim_text = 0
+        else:
+            sim_text = (text_embs1[i] @ text_embs2[j]).item()
+        sim_combined = 0.7 * sim_img + 0.3 * sim_text
 
         similarity_list.append({
             "img1": file1,
+            "label1": labels1[i],
             "img2": file2,
-            "similarity": similarity
+            "label2": labels2[j],
+            "sim_img": sim_img,
+            "sim_text": sim_text,
+            "sim_combined": sim_combined
         })
 
-similarity_list.sort(key=lambda x: x["similarity"], reverse=True)
 
+# similarity_list.sort(key=lambda x: x["similarity"], reverse=True)
+similarity_list.sort(key=lambda x: x["sim_combined"], reverse=True)
+
+print("\nTop object similarities:")
+for s in similarity_list[:10]:
+    print(f"{s['img1']} ({s['label1']}) ↔ {s['img2']} ({s['label2']}) | "
+          f"ImageSim: {s['sim_img']:.3f} | TextSim: {s['sim_text']:.3f} | Combined: {s['sim_combined']:.3f}")
+
+"""
 # Display top results
 print("\nTop object similarities:")
 for s in similarity_list[:10]:
     print(f"{s['img1']} ↔ {s['img2']} | Similarity: {s['similarity']:.3f}")
+"""

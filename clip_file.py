@@ -20,8 +20,6 @@ emb1 /= emb1.norm(dim=-1, keepdim=True)
 emb2 /= emb2.norm(dim=-1, keepdim=True)
 # Cosine similarity Ab / ||A||||B||
 similarity = (emb1 @ emb2.T).item()
+# Generates a concept space where direction = meaning
 
 print(f"Similarity: {similarity:.2f}")
-
-
-
