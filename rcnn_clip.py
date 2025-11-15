@@ -99,8 +99,8 @@ def get_objs(og_width, og_height, preds, img, crop_dir):
     # Save background
     save_background(img, all_foreground_masks_np, og_width, og_height, crop_dir)
     # comment these 2 lines to exlude backgroung
-    #obj_labels.append("unknown")
-    #obj_files.append(f"background.png")
+    obj_labels.append("background")
+    obj_files.append(f"background.png")
 
     return obj_files, obj_labels
 
@@ -186,21 +186,20 @@ preds2 = get_predictions(input_tensor2)
 obj_list1, labels1 = get_objs(og_width1, og_height1, preds1, img1, crop_dir1)
 obj_list2, labels2 = get_objs(og_width2, og_height2, preds2, img2, crop_dir2)
 
-# obj_list1 = gather_imgs(crop_dir1)
-# obj_list2 = gather_imgs(crop_dir2)
-
 text_embs1 = encode_labels_as_text(labels1)
 text_embs2 = encode_labels_as_text(labels2)
 
 similarity_list = []
 
 for i, file1 in enumerate(obj_list1):
+    # Grab image from file path (image 1)
     img_proc1 = preprocess(Image.open(os.path.join(crop_dir1, file1)).convert("RGB")).unsqueeze(0).to(device)
     with torch.no_grad():
         emb1 = clip_model.encode_image(img_proc1)
     emb1 /= emb1.norm(dim=-1, keepdim=True)
 
     for j, file2 in enumerate(obj_list2):
+        # Grab image from file path (image 2)
         img_proc2 = preprocess(Image.open(os.path.join(crop_dir2, file2)).convert("RGB")).unsqueeze(0).to(device)
         with torch.no_grad():
             emb2 = clip_model.encode_image(img_proc2)
@@ -223,8 +222,6 @@ for i, file1 in enumerate(obj_list1):
             "sim_combined": sim_combined
         })
 
-
-# similarity_list.sort(key=lambda x: x["similarity"], reverse=True)
 similarity_list.sort(key=lambda x: x["sim_combined"], reverse=True)
 
 print("\nTop object similarities:")
@@ -232,9 +229,86 @@ for s in similarity_list[:10]:
     print(f"{s['img1']} ({s['label1']}) ↔ {s['img2']} ({s['label2']}) | "
           f"ImageSim: {s['sim_img']:.3f} | TextSim: {s['sim_text']:.3f} | Combined: {s['sim_combined']:.3f}")
 
-"""
+# Keep highest matching pairs:
+# 1. If object in first image is already matched, swap features with first pair
+# ex/ cat <-> cow, so cat will swap features with cow
+# 2. This will also be the case for objects in the second image
+# ex/ cat <-> skateboard, so if cat is already swapping with cow, then skateboard
+# will take cat's features, but cat will still look like cow,
+# so cow and skateboard will have cat's features, and cat will have cow's features
+
+### IMAGE 1 MATCHING ###
+
+# Final matching list in order
+final_matches = {}
+reverse_matches = {}
+
+# Sets of unordered images/objects
+set_img1 = set()
+set_img2 = set()
+
+def resolve_chain(target, reverse_matches):
+    # Follow chain until reaching final unmatched object
+    while target in reverse_matches:
+        target = reverse_matches[target]
+    return target
+
+# Have 2 loops, one for main order, then for reverse order
+# Iterate though similarity_list
+for pair in similarity_list:
+    obj1 = pair["img1"]
+    obj2 = pair["img2"]
+
+    # Skip if obj1 is already matched
+    if obj1 in set_img1:
+        continue
+
+    # obj2 unused -> simple match
+    if obj2 not in set_img2:
+        final_matches[obj1] = obj2
+        reverse_matches[obj2] = obj1
+        set_img1.add(obj1)
+        set_img2.add(obj2)
+    else:
+        # obj2 already matched, so follow the chain
+        final_target = resolve_chain(obj2, reverse_matches)
+
+        final_matches[obj1] = final_target
+        set_img1.add(obj1)
+
+### IMAGE 2 MATCHING ###
+
+# Final matching list in order
+final_matches2 = {}
+reverse_matches2 = {}
+
+# Sets of unordered images/objects
+set_img1_2 = set()
+set_img2_2 = set()
+
+# Iterate though similarity_list
+for pair in similarity_list:
+    obj1 = pair["img2"]
+    obj2 = pair["img1"]
+
+    # Skip if obj1 is already matched
+    if obj1 in set_img1_2:
+        continue
+
+    # obj2 unused -> simple match
+    if obj2 not in set_img2_2:
+        final_matches2[obj1] = obj2
+        reverse_matches2[obj2] = obj1
+        set_img1_2.add(obj1)
+        set_img2_2.add(obj2)
+    else: # obj2 already matched -> chain following
+        final_target = resolve_chain(obj2, reverse_matches)
+
+        final_matches2[obj1] = final_target
+        set_img1_2.add(obj1)
+
 # Display top results
-print("\nTop object similarities:")
-for s in similarity_list[:10]:
-    print(f"{s['img1']} ↔ {s['img2']} | Similarity: {s['similarity']:.3f}")
-"""
+print("\nFinal similarities image 1:")
+print(final_matches)
+print("\nFinal similarities image 2:")
+print(final_matches2)
