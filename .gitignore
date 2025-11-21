@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.egg
+*.egg-info/
+
+masked_objects*/
+**/masked_objects*/
+
+swapped_img*/
+**/swapped_img*/
