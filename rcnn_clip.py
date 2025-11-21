@@ -155,9 +155,7 @@ def resolve_chain(target, reverse_matches):
         target = reverse_matches[target]
     return target
 
-def color_transfer_reinhard(src_pil, tgt_pil):
-    """Applies LAB color transfer from target → source image."""
-
+def color_transfer(src_pil, tgt_pil):
     # Convert PIL → OpenCV LAB
     src = cv2.cvtColor(np.array(src_pil), cv2.COLOR_RGB2LAB).astype(np.float32)
     tgt = cv2.cvtColor(np.array(tgt_pil), cv2.COLOR_RGB2LAB).astype(np.float32)
@@ -366,7 +364,7 @@ for obj1, obj2 in final_matches.items():
     src_pil = Image.open(src_path).convert("RGB")
     tgt_pil = Image.open(tgt_path).convert("RGB")
 
-    swapped = color_transfer_reinhard(src_pil, tgt_pil)
+    swapped = color_transfer(src_pil, tgt_pil)
 
     swapped.save(os.path.join(swapped_img1_dir, obj1))
 
@@ -380,6 +378,6 @@ for obj2, obj1 in final_matches2.items():
     src_pil = Image.open(src_path).convert("RGB")
     tgt_pil = Image.open(tgt_path).convert("RGB")
 
-    swapped = color_transfer_reinhard(src_pil, tgt_pil)
+    swapped = color_transfer(src_pil, tgt_pil)
 
     swapped.save(os.path.join(swapped_img2_dir, obj2))
