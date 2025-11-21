@@ -1,4 +1,5 @@
 import clip
+import cv2
 import torch
 from torchvision import transforms
 from PIL import Image
@@ -104,7 +105,6 @@ def get_objs(og_width, og_height, preds, img, crop_dir):
 
     return obj_files, obj_labels
 
-
 def save_background(og_img, accumulated_mask_np, og_width, og_height, crop_dir):
     # Find tight bounds for the background area
     coords = np.where(~accumulated_mask_np) # Invert mask for background bounds
@@ -149,6 +149,42 @@ def encode_labels_as_text(labels):
     text_embs /= text_embs.norm(dim=-1, keepdim=True)
     return text_embs
 
+def resolve_chain(target, reverse_matches):
+    # Follow chain until reaching final unmatched object
+    while target in reverse_matches:
+        target = reverse_matches[target]
+    return target
+
+def color_transfer_reinhard(src_pil, tgt_pil):
+    """Applies LAB color transfer from target → source image."""
+
+    # Convert PIL → OpenCV LAB
+    src = cv2.cvtColor(np.array(src_pil), cv2.COLOR_RGB2LAB).astype(np.float32)
+    tgt = cv2.cvtColor(np.array(tgt_pil), cv2.COLOR_RGB2LAB).astype(np.float32)
+
+    # Compute statistics
+    src_mean, src_std = cv2.meanStdDev(src)
+    tgt_mean, tgt_std = cv2.meanStdDev(tgt)
+
+    src_mean = src_mean.flatten()
+    src_std = src_std.flatten()
+    tgt_mean = tgt_mean.flatten()
+    tgt_std = tgt_std.flatten()
+
+    # Perform Reinhard color transfer
+    result = (src - src_mean) * (tgt_std / src_std) + tgt_mean
+
+    # Clip
+    result = np.clip(result, 0, 255)
+
+    # Convert back to uint8 RGB PIL image
+    result = result.astype(np.uint8)
+    result = cv2.cvtColor(result, cv2.COLOR_LAB2RGB)
+
+    return Image.fromarray(result)
+
+### MAIN ###
+
 weights = MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT
 detector = maskrcnn_resnet50_fpn_v2(weights=weights).eval()
 
@@ -161,11 +197,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
-img1_name = "kitty.png"
-img2_name = "cow.png"
+img1_name = "chihuahua.png"
+img2_name = "kitty.png"
 
 img1 = Image.open(img1_name).convert("RGB")
-
+  
 crop_dir1 = f"masked_objects_for_{img1_name}"
 os.makedirs(crop_dir1, exist_ok=True)
 
@@ -186,8 +222,28 @@ preds2 = get_predictions(input_tensor2)
 obj_list1, labels1 = get_objs(og_width1, og_height1, preds1, img1, crop_dir1)
 obj_list2, labels2 = get_objs(og_width2, og_height2, preds2, img2, crop_dir2)
 
+# Swap object's from list 1 with list 2 and vice versa if first image has more objects
+if len(obj_list1) > len(obj_list2):
+    temp_list1 = obj_list1
+    obj_list1 = obj_list2
+    obj_list2 = temp_list1
+
+    temp_labels1 = labels1
+    labels1 = labels2
+    labels2 = temp_labels1
+
+    temp_crop_dir1 = crop_dir1
+    crop_dir1 = crop_dir2
+    crop_dir2 = temp_crop_dir1
+
+    temp_img1_name = img1_name
+    img1_name = img2_name
+    img2_name = temp_img1_name
+
 text_embs1 = encode_labels_as_text(labels1)
 text_embs2 = encode_labels_as_text(labels2)
+
+### FIND SIMILARITIES ###
 
 similarity_list = []
 
@@ -203,6 +259,7 @@ for i, file1 in enumerate(obj_list1):
         img_proc2 = preprocess(Image.open(os.path.join(crop_dir2, file2)).convert("RGB")).unsqueeze(0).to(device)
         with torch.no_grad():
             emb2 = clip_model.encode_image(img_proc2)
+
         emb2 /= emb2.norm(dim=-1, keepdim=True)
 
         sim_img = (emb1 @ emb2.T).item()
@@ -229,14 +286,6 @@ for s in similarity_list[:10]:
     print(f"{s['img1']} ({s['label1']}) ↔ {s['img2']} ({s['label2']}) | "
           f"ImageSim: {s['sim_img']:.3f} | TextSim: {s['sim_text']:.3f} | Combined: {s['sim_combined']:.3f}")
 
-# Keep highest matching pairs:
-# 1. If object in first image is already matched, swap features with first pair
-# ex/ cat <-> cow, so cat will swap features with cow
-# 2. This will also be the case for objects in the second image
-# ex/ cat <-> skateboard, so if cat is already swapping with cow, then skateboard
-# will take cat's features, but cat will still look like cow,
-# so cow and skateboard will have cat's features, and cat will have cow's features
-
 ### IMAGE 1 MATCHING ###
 
 # Final matching list in order
@@ -246,12 +295,6 @@ reverse_matches = {}
 # Sets of unordered images/objects
 set_img1 = set()
 set_img2 = set()
-
-def resolve_chain(target, reverse_matches):
-    # Follow chain until reaching final unmatched object
-    while target in reverse_matches:
-        target = reverse_matches[target]
-    return target
 
 # Have 2 loops, one for main order, then for reverse order
 # Iterate though similarity_list
@@ -312,3 +355,31 @@ print("\nFinal similarities image 1:")
 print(final_matches)
 print("\nFinal similarities image 2:")
 print(final_matches2)
+
+swapped_img1_dir = f"swapped_img_{img1_name}"
+os.makedirs(swapped_img1_dir, exist_ok=True)
+
+for obj1, obj2 in final_matches.items():
+    src_path = os.path.join(crop_dir1, obj1)   # object from image 1
+    tgt_path = os.path.join(crop_dir2, obj2)   # its matched partner from image 2
+
+    src_pil = Image.open(src_path).convert("RGB")
+    tgt_pil = Image.open(tgt_path).convert("RGB")
+
+    swapped = color_transfer_reinhard(src_pil, tgt_pil)
+
+    swapped.save(os.path.join(swapped_img1_dir, obj1))
+
+swapped_img2_dir = f"swapped_img_{img2_name}"
+os.makedirs(swapped_img2_dir, exist_ok=True)
+
+for obj2, obj1 in final_matches2.items():
+    src_path = os.path.join(crop_dir2, obj2)
+    tgt_path = os.path.join(crop_dir1, obj1)
+
+    src_pil = Image.open(src_path).convert("RGB")
+    tgt_pil = Image.open(tgt_path).convert("RGB")
+
+    swapped = color_transfer_reinhard(src_pil, tgt_pil)
+
+    swapped.save(os.path.join(swapped_img2_dir, obj2))
