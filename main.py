@@ -3,8 +3,32 @@ import clip
 import torch
 from torchvision import transforms
 from PIL import Image
+import numpy as np
 import os
 from torchvision.models.detection import maskrcnn_resnet50_fpn_v2, MaskRCNN_ResNet50_FPN_V2_Weights
+
+def swapping(first_objs, sec_objs, first_crops, sec_crops, match_list, save_dir):
+    for first_objs, sec_objs in match_list.items():
+        src_path = os.path.join(first_crops, first_objs)   # object from image 1
+        tgt_path = os.path.join(sec_crops, sec_objs)   # its matched partner from image 2
+
+        print(f"Swapping image {src_path} with {tgt_path}")
+
+        src_pil = Image.open(src_path).convert("RGB")
+        tgt_pil = Image.open(tgt_path).convert("RGB")
+
+        swapped_color = rcnn_clip.color_transfer(src_pil, tgt_pil)
+        swapped_histo = rcnn_clip.histo_transfer(swapped_color, tgt_pil)
+
+        src_np = np.array(swapped_color).astype(np.float32)
+        hist_np = np.array(swapped_histo).astype(np.float32)
+
+        blended = (0.8) * src_np + 0.2 * hist_np
+        blended = np.clip(blended, 0, 255).astype(np.uint8)
+
+        result = Image.fromarray(blended)
+
+        result.save(os.path.join(save_dir, first_objs))
 
 ### MAIN ###
 
@@ -20,8 +44,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
-img1_name = "kitty.png"
-img2_name = "cow.png"
+img1_name = "wolf.png"
+img2_name = "kitty.png"
 
 img1 = Image.open(img1_name).convert("RGB")
   
@@ -182,27 +206,11 @@ print(final_matches2)
 swapped_img1_dir = f"swapped_img_{img1_name}"
 os.makedirs(swapped_img1_dir, exist_ok=True)
 
-for obj1, obj2 in final_matches.items():
-    src_path = os.path.join(crop_dir1, obj1)   # object from image 1
-    tgt_path = os.path.join(crop_dir2, obj2)   # its matched partner from image 2
+print("\nSwapping color of objects:")
 
-    src_pil = Image.open(src_path).convert("RGB")
-    tgt_pil = Image.open(tgt_path).convert("RGB")
-
-    swapped = rcnn_clip.color_transfer(src_pil, tgt_pil)
-
-    swapped.save(os.path.join(swapped_img1_dir, obj1))
+swapping(obj1, obj2, crop_dir1, crop_dir2, final_matches, swapped_img1_dir)
 
 swapped_img2_dir = f"swapped_img_{img2_name}"
 os.makedirs(swapped_img2_dir, exist_ok=True)
 
-for obj2, obj1 in final_matches2.items():
-    src_path = os.path.join(crop_dir2, obj2)
-    tgt_path = os.path.join(crop_dir1, obj1)
-
-    src_pil = Image.open(src_path).convert("RGB")
-    tgt_pil = Image.open(tgt_path).convert("RGB")
-
-    swapped = rcnn_clip.color_transfer(src_pil, tgt_pil)
-
-    swapped.save(os.path.join(swapped_img2_dir, obj2))
+swapping(obj2, obj1, crop_dir2, crop_dir1, final_matches2, swapped_img2_dir)
