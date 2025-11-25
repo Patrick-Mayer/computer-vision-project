@@ -2,6 +2,7 @@ import clip
 import cv2
 import torch
 from PIL import Image
+from skimage.exposure import match_histograms
 import numpy as np
 import os
 
@@ -153,11 +154,11 @@ def resolve_chain(target, reverse_matches):
     return target
 
 def color_transfer(src_pil, tgt_pil):
-    # Convert PIL → OpenCV LAB
+    # Convert PIL to cv2 LAB
     src = cv2.cvtColor(np.array(src_pil), cv2.COLOR_RGB2LAB).astype(np.float32)
     tgt = cv2.cvtColor(np.array(tgt_pil), cv2.COLOR_RGB2LAB).astype(np.float32)
 
-    # Compute statistics
+    # Compute stats
     src_mean, src_std = cv2.meanStdDev(src)
     tgt_mean, tgt_std = cv2.meanStdDev(tgt)
 
@@ -177,3 +178,12 @@ def color_transfer(src_pil, tgt_pil):
     result = cv2.cvtColor(result, cv2.COLOR_LAB2RGB)
 
     return Image.fromarray(result)
+
+# Uses scikit histogram
+def histo_transfer(src_pil, tgt_pil):
+    src = np.array(src_pil)
+    tgt = np.array(tgt_pil)
+
+    matched = match_histograms(src, tgt, channel_axis=-1)
+
+    return Image.fromarray(np.uint8(matched))
