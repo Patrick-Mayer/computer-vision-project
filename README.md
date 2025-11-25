@@ -10,7 +10,4 @@ There should be an option to only return one output image if the user so chooses
 
 ## How to Run
 
-To run the project, run rcnn.py
-
-Resnet - segmenting
-unet - Homemade untrained model.
+To run the project, run main.py. When main.py is ran, it calls several functions defined in rcnn_clip.py.
