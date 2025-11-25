@@ -1,3 +1,5 @@
+#This is the new primary file which include's OpenAI Clip library
+
 import clip
 import torch
 from torchvision import transforms
@@ -157,12 +159,28 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
+def PatrickTestingPIL():
+    #testing PIL pasting
+    PIL_IMG1_NAME = "cow.png";
+    PIL_IMG2_NAME = "kitty.png";
+
+    PIL_IMG1 = Image.open(PIL_IMG1_NAME).convert("RGB");
+    PIL_IMG2 = Image.open(PIL_IMG2_NAME).convert("RGB");
+
+    PIL_IMG1.paste(PIL_IMG2);
+    PIL_IMG1.save('CowAndKitty.png', quality=95);
+
+
+
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
 img1_name = "kitty.png"
 img2_name = "cow.png"
+
+#PatrickTestingPil();
 
 img1 = Image.open(img1_name).convert("RGB")
 
