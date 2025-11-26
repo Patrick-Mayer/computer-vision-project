@@ -43,8 +43,6 @@ transform = transforms.Compose([
 device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
-rcnn_clip.PatrickTestingPIL();
-
 # Update test images
 img1_name = "wolf.png"
 img2_name = "kitty.png"
@@ -55,6 +53,8 @@ crop_dir1 = f"masked_objects_for_{img1_name}"
 os.makedirs(crop_dir1, exist_ok=True)
 
 img2 = Image.open(img2_name).convert("RGB")
+
+rcnn_clip.CopyImageOntoBackground(img2, img1, "WolfAndKitty.png");
 
 crop_dir2 = f"masked_objects_for_{img2_name}"
 os.makedirs(crop_dir2, exist_ok=True)
