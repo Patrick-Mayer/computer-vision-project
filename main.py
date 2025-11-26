@@ -1,3 +1,5 @@
+#Do not run with CTRL + ALT + N in VSCodium. Run by double clicking main.py or running "py main.py" in terminal.
+
 import rcnn_clip
 import clip
 import torch
@@ -54,7 +56,7 @@ os.makedirs(crop_dir1, exist_ok=True)
 
 img2 = Image.open(img2_name).convert("RGB")
 
-rcnn_clip.CopyImageOntoBackground(img2, img1, "WolfAndKitty.png");
+#rcnn_clip.CopyImageOntoBackground(img2, img1, "WolfAndKitty.png");
 
 crop_dir2 = f"masked_objects_for_{img2_name}"
 os.makedirs(crop_dir2, exist_ok=True)
@@ -216,3 +218,23 @@ swapped_img2_dir = f"swapped_img_{img2_name}"
 os.makedirs(swapped_img2_dir, exist_ok=True)
 
 swapping(obj2, obj1, crop_dir2, crop_dir1, final_matches2, swapped_img2_dir)
+
+
+# Stitching the images together. As of rn, this is all hardcoded.
+os.makedirs("final_pasted_images", exist_ok=True);
+
+finalBackgrounds = [];
+finalImages = [];
+finalImgNames = ["final_pasted_images/FinalKitty.png"]; #.pngs
+
+# dogBackground = Image.open("masked_objects_for_chihuahua.png/background.png").convert("RGB");
+kittyBackground = Image.open("masked_objects_for_kitty.png/background.png").convert("RGB");
+# wolfBackground = Image.open("masked_objects_for_wolf.png/background.png").convert("RGB");
+# finalBackgrounds = [dogBackground, kittyBackground, wolfBackground];
+finalBackgrounds.append(kittyBackground);
+
+finalKitty = Image.open("swapped_img_kitty.png/cropped_mask_cat_1.png").convert("RGB");
+finalImages.append(finalKitty);
+
+for i in range(len(finalBackgrounds)):
+    rcnn_clip.CopyImageOntoBackground(finalImages[i], finalBackgrounds[i], finalImgNames[i]);
