@@ -43,6 +43,8 @@ transform = transforms.Compose([
 device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
+rcnn_clip.PatrickTestingPIL();
+
 # Update test images
 img1_name = "wolf.png"
 img2_name = "kitty.png"
