@@ -180,7 +180,7 @@ clip_model, preprocess = clip.load("ViT-L/14", device=device)
 img1_name = "kitty.png"
 img2_name = "cow.png"
 
-#PatrickTestingPil();
+PatrickTestingPIL();
 
 img1 = Image.open(img1_name).convert("RGB")
 
