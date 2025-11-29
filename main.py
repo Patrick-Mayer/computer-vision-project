@@ -14,19 +14,32 @@ def swapping(first_objs, sec_objs, first_crops, sec_crops, match_list, save_dir)
 
         print(f"Swapping image {src_path} with {tgt_path}")
 
-        src_pil = Image.open(src_path).convert("RGB")
-        tgt_pil = Image.open(tgt_path).convert("RGB")
+         # Load with alpha preserved
+        src_rgba = Image.open(src_path).convert("RGBA")
+        tgt_rgba = Image.open(tgt_path).convert("RGBA")
 
-        swapped_color = rcnn_clip.color_transfer(src_pil, tgt_pil)
-        swapped_histo = rcnn_clip.histo_transfer(swapped_color, tgt_pil)
+        # Like in apply_mask_and_save_refined(), we need to perserve the RBG and also have the alpha channel
+        src_np = np.array(src_rgba)
+        alpha_channel = src_np[:, :, 3] # keep transparency mask
 
-        src_np = np.array(swapped_color).astype(np.float32)
+        src_rgb = Image.fromarray(src_np[:, :, :3])
+        tgt_rgb = tgt_rgba.convert("RGB")
+
+        # First color transfer
+        swapped_color = rcnn_clip.color_transfer(src_rgb, tgt_rgb)
+
+        # Then histogram transfer
+        swapped_histo = rcnn_clip.histo_transfer(swapped_color, tgt_rgb)
+
+        color_np = np.array(swapped_color).astype(np.float32)
         hist_np = np.array(swapped_histo).astype(np.float32)
 
-        blended = (0.8) * src_np + 0.2 * hist_np
-        blended = np.clip(blended, 0, 255).astype(np.uint8)
+        blended_rgb = 0.8 * color_np + 0.2 * hist_np
+        blended_rgb = np.clip(blended_rgb, 0, 255).astype(np.uint8)
 
-        result = Image.fromarray(blended)
+        final_rgba = np.dstack([blended_rgb, alpha_channel])
+
+        result = Image.fromarray(final_rgba, mode="RGBA")
 
         result.save(os.path.join(save_dir, first_objs))
 
