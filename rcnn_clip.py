@@ -147,6 +147,22 @@ def encode_labels_as_text(labels, device, clip_model):
     text_embs /= text_embs.norm(dim=-1, keepdim=True)
     return text_embs
 
+def PatrickTestingPIL():
+    #testing PIL pasting
+    PIL_IMG1_NAME = "cow.png";
+    PIL_IMG2_NAME = "kitty.png";
+
+    PIL_IMG1 = Image.open(PIL_IMG1_NAME).convert("RGB");
+    PIL_IMG2 = Image.open(PIL_IMG2_NAME).convert("RGB");
+
+    PIL_IMG1.paste(PIL_IMG2);
+    PIL_IMG1.save('CowAndKitty.png', quality=95);
+
+def CopyImageOntoBackground(copyImg, backgroundImg, newImgName):
+    newImg = backgroundImg.copy();    #have to force deep copy cause of Python BS
+    newImg.paste(copyImg);
+    newImg.save(newImgName, quality=95);
+
 def resolve_chain(target, reverse_matches):
     # Follow chain until reaching final unmatched object
     while target in reverse_matches:
