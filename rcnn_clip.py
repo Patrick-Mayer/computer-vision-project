@@ -163,6 +163,27 @@ def CopyImageOntoBackground(copyImg, backgroundImg, newImgName):
     newImg.paste(copyImg);
     newImg.save(newImgName, quality=95);
 
+
+#borrows logic from the swapping() function in main.py
+def Copying(firstObjPair, secondObjPair, firstCropDirectory, secondCropDirectory, matchList, saveDirectory):
+    #ask Jase how matchList works and how to grab appropriate background and copy img
+    
+    for first_objs, sec_objs in matchList.items():
+        #!this is the wrong combination, you need cropped img + background
+        src_path = os.path.join(firstCropDirectory, first_objs);   # object from image 1
+        tgt_path = os.path.join(secondCropDirectory, sec_objs);   # its matched partner from image 2
+
+
+        print(f"Copying image {src_path} with {tgt_path}");
+
+        img1 = Image.open(src_path).convert("RGB");
+        img2 = Image.open(tgt_path).convert("RGB");
+
+        #combinedFileName = saveDirectory + ;
+
+        #!(copyImg, backgroundImg, newImgName)
+        # CopyImageOntoBackground(img1, img2, combinedFileName);
+
 def resolve_chain(target, reverse_matches):
     # Follow chain until reaching final unmatched object
     while target in reverse_matches:

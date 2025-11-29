@@ -223,18 +223,22 @@ swapping(obj2, obj1, crop_dir2, crop_dir1, final_matches2, swapped_img2_dir)
 # Stitching the images together. As of rn, this is all hardcoded.
 os.makedirs("final_pasted_images", exist_ok=True);
 
-finalBackgrounds = [];
-finalImages = [];
-finalImgNames = ["final_pasted_images/FinalKitty.png"]; #.pngs
+FINAL_IMG_DIRECTORY_NAME = "final_pasted_images";
+rcnn_clip.Copying(obj2, obj1, crop_dir2, crop_dir1, final_matches2, FINAL_IMG_DIRECTORY_NAME);
 
-# dogBackground = Image.open("masked_objects_for_chihuahua.png/background.png").convert("RGB");
-kittyBackground = Image.open("masked_objects_for_kitty.png/background.png").convert("RGB");
-# wolfBackground = Image.open("masked_objects_for_wolf.png/background.png").convert("RGB");
-# finalBackgrounds = [dogBackground, kittyBackground, wolfBackground];
-finalBackgrounds.append(kittyBackground);
+# finalBackgrounds = [];
+# finalImages = [];
+# finalImgNames = ["final_pasted_images/FinalKitty.png"]; #.pngs
 
-finalKitty = Image.open("swapped_img_kitty.png/cropped_mask_cat_1.png").convert("RGB");
-finalImages.append(finalKitty);
 
-for i in range(len(finalBackgrounds)):
-    rcnn_clip.CopyImageOntoBackground(finalImages[i], finalBackgrounds[i], finalImgNames[i]);
+# # dogBackground = Image.open("masked_objects_for_chihuahua.png/background.png").convert("RGB");
+# kittyBackground = Image.open("masked_objects_for_kitty.png/background.png").convert("RGB");
+# # wolfBackground = Image.open("masked_objects_for_wolf.png/background.png").convert("RGB");
+# # finalBackgrounds = [dogBackground, kittyBackground, wolfBackground];
+# finalBackgrounds.append(kittyBackground);
+
+# finalKitty = Image.open("swapped_img_kitty.png/cropped_mask_cat_1.png").convert("RGB");
+# finalImages.append(finalKitty);
+
+# for i in range(len(finalBackgrounds)):
+#     rcnn_clip.CopyImageOntoBackground(finalImages[i], finalBackgrounds[i], finalImgNames[i]);
