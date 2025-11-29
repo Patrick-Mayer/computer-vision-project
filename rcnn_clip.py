@@ -158,31 +158,69 @@ def PatrickTestingPIL():
     PIL_IMG1.paste(PIL_IMG2);
     PIL_IMG1.save('CowAndKitty.png', quality=95);
 
-def CopyImageOntoBackground(copyImg, backgroundImg, newImgName):
+def CopyImageOntoBackground(copyImg, backgroundImg, newImgName, saveImg = False):
     newImg = backgroundImg.copy();    #have to force deep copy cause of Python BS
     newImg.paste(copyImg);
-    newImg.save(newImgName, quality=95);
+
+    if (saveImg):
+        newImg.save(newImgName, quality=95);
+        return None;
+    else:
+        return newImg;
 
 
 #borrows logic from the swapping() function in main.py
-def Copying(firstObjPair, secondObjPair, firstCropDirectory, secondCropDirectory, matchList, saveDirectory):
+def Copying(directoryArr, saveDirectory):
+    if not saveDirectory.endswith("/"):
+        saveDirectory += "/";
+
+    
     #ask Jase how matchList works and how to grab appropriate background and copy img
     
-    for first_objs, sec_objs in matchList.items():
-        #!this is the wrong combination, you need cropped img + background
-        src_path = os.path.join(firstCropDirectory, first_objs);   # object from image 1
-        tgt_path = os.path.join(secondCropDirectory, sec_objs);   # its matched partner from image 2
+    #amount in a folder?
+    #exactly one background, find however many images that are not backgrounds
+    for directory in directoryArr:
+        BACKGROUND_FILE_NAME = "background.png";
+        croppedFileNameArr = [];
+        foundBackground = False;
+
+        files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))];   #this one-liner gets everything in the folder
+        for file in files:
+            if (file == BACKGROUND_FILE_NAME):
+                foundBackground = True;
+            else:
+                croppedFileNameArr.append(file);
 
 
-        print(f"Copying image {src_path} with {tgt_path}");
 
-        img1 = Image.open(src_path).convert("RGB");
-        img2 = Image.open(tgt_path).convert("RGB");
+        if (not foundBackground):
+            print("This folder is invalid. No background file found.");
+            return;
 
-        #combinedFileName = saveDirectory + ;
+        
+        FULL_BACKGROUND_STR = (directory + "/" + BACKGROUND_FILE_NAME);
+        backgroundImg = Image.open(FULL_BACKGROUND_STR).convert("RGB");
+        lastImg = backgroundImg;
+        objName = directory.split("img_")[1].split(".")[0];     #grabs the string in between img_ and .png
+        newImgName = (saveDirectory + "Final_" + objName + ".png");
+        #enumerate gives us range-based for loop with an index
+        for i, file in enumerate(croppedFileNameArr):
+            onLastFile = (i == (len(croppedFileNameArr) - 1));
+            imgPath = (directory + "/" + file);
+            img = Image.open(imgPath).convert("RGB");
 
-        #!(copyImg, backgroundImg, newImgName)
-        # CopyImageOntoBackground(img1, img2, combinedFileName);
+            
+            lastImg = CopyImageOntoBackground(img, lastImg, newImgName, saveImg=onLastFile);
+
+
+
+        #find everything else
+        #copy everything else onto background
+
+    #combinedFileName = saveDirectory + ;
+
+    #!(copyImg, backgroundImg, newImgName)
+    # CopyImageOntoBackground(img1, img2, combinedFileName);
 
 def resolve_chain(target, reverse_matches):
     # Follow chain until reaching final unmatched object

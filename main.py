@@ -235,9 +235,19 @@ swapping(obj2, obj1, crop_dir2, crop_dir1, final_matches2, swapped_img2_dir)
 
 # Stitching the images together. As of rn, this is all hardcoded.
 os.makedirs("final_pasted_images", exist_ok=True);
+homeDirectory = os.getcwd();
+
+swappedDirectories = [];
+for file in os.listdir(homeDirectory):
+    fullPath = os.path.join(homeDirectory, file)
+    #Check if it's a directory and that it starts with "swapped_img"
+    if os.path.isdir(fullPath) and file.startswith("swapped_img"):
+        swappedDirectories.append(file);
+
+#print(swappedDirectories);
 
 FINAL_IMG_DIRECTORY_NAME = "final_pasted_images";
-rcnn_clip.Copying(obj2, obj1, crop_dir2, crop_dir1, final_matches2, FINAL_IMG_DIRECTORY_NAME);
+rcnn_clip.Copying(swappedDirectories, FINAL_IMG_DIRECTORY_NAME);
 
 # finalBackgrounds = [];
 # finalImages = [];
