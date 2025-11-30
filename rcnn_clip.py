@@ -201,7 +201,7 @@ def Copying(directoryArr, saveDirectory):
         FULL_BACKGROUND_STR = (directory + "/" + BACKGROUND_FILE_NAME);
         backgroundImg = Image.open(FULL_BACKGROUND_STR).convert("RGB");
         lastImg = backgroundImg;
-        objName = directory.split("img_")[1].split(".")[0];     #grabs the string in between img_ and .png
+        objName = directory.split("swapped_img_")[1].split(".")[0];     #grabs the string in between img_ and .png
         newImgName = (saveDirectory + "Final_" + objName + ".png");
         #enumerate gives us range-based for loop with an index
         for i, file in enumerate(croppedFileNameArr):
