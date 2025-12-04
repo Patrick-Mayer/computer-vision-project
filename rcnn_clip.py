@@ -41,7 +41,7 @@ def apply_mask_and_save_refined(og_img, mask_tensor, label_name, index, is_backg
     coords = np.where(binary_mask) # coords where mask == TRUE
     if coords[0].size == 0:
         print(f"Skipping empty mask for {label_name}")
-        return None
+        return None, None
 
     ymin, ymax = coords[0].min(), coords[0].max()
     xmin, xmax = coords[1].min(), coords[1].max()
@@ -63,14 +63,14 @@ def apply_mask_and_save_refined(og_img, mask_tensor, label_name, index, is_backg
     
     # Results
     if is_background:
-        suffix = "background"
-    else: 
-        suffix = f"{label_name}_{index}"
+        filename = "background.png"
+    else:
+        filename = f"cropped_mask_{label_name}_x{xmin}_y{ymin}_x{xmax}_y{ymax}_{index}.png"
 
-    save_path = os.path.join(crop_dir, f"cropped_mask_{suffix}.png")
+    save_path = os.path.join(crop_dir, filename)
     cropped_object.save(save_path)
     
-    return binary_mask
+    return binary_mask, filename
 
 def get_objs(og_width, og_height, preds, img, crop_dir, weights):
     all_foreground_masks_np = np.zeros((og_height, og_width), dtype=bool)
@@ -79,7 +79,7 @@ def get_objs(og_width, og_height, preds, img, crop_dir, weights):
 
     for i in range(len(preds["boxes"])):
         label_name = weights.meta['categories'][preds["labels"][i].item()]
-        mask = apply_mask_and_save_refined(
+        mask, filename = apply_mask_and_save_refined(
             img,
             preds["masks"][i],
             label_name,
@@ -93,7 +93,7 @@ def get_objs(og_width, og_height, preds, img, crop_dir, weights):
         if mask is not None:
             all_foreground_masks_np = np.logical_or(all_foreground_masks_np, mask)
             obj_labels.append(label_name)
-            obj_files.append(f"cropped_mask_{label_name}_{i+1}.png")
+            obj_files.append(filename)
 
     # Save background
     save_background(img, all_foreground_masks_np, og_width, og_height, crop_dir)

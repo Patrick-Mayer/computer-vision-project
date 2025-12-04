@@ -6,6 +6,7 @@ import torch
 from torchvision import transforms
 from PIL import Image
 import numpy as np
+import re
 import os
 from torchvision.models.detection import maskrcnn_resnet50_fpn_v2, MaskRCNN_ResNet50_FPN_V2_Weights
 
@@ -16,7 +17,7 @@ def swapping(first_objs, sec_objs, first_crops, sec_crops, match_list, save_dir)
 
         print(f"Swapping image {src_path} with {tgt_path}")
 
-         # Load with alpha preserved
+        # Load with alpha preserved
         src_rgba = Image.open(src_path).convert("RGBA")
         tgt_rgba = Image.open(tgt_path).convert("RGBA")
 
@@ -45,6 +46,51 @@ def swapping(first_objs, sec_objs, first_crops, sec_crops, match_list, save_dir)
 
         result.save(os.path.join(save_dir, first_objs))
 
+# 
+box_reg = re.compile(
+    r".*_x(?P<xmin>\d+)_y(?P<ymin>\d+)_x(?P<xmax>\d+)_y(?P<ymax>\d+)_\d+\.png"
+)
+
+# Pasting object images onto background
+def pasting(swapped_dir, save_dir, index):
+    print(f"Pasting images in: {swapped_dir}")
+
+    base_path = os.path.join(swapped_dir, "background.png")
+    base_rgba = Image.open(base_path).convert("RGBA")
+    W, H = base_rgba.size
+
+    final_img = base_rgba.copy()
+
+    for filename in os.listdir(swapped_dir):
+
+        if filename == "background.png":
+            continue
+
+        m = box_reg.match(filename)
+        if not m:
+            print(f"Skipping (no bbox): {filename}")
+            continue
+
+        xmin = int(m.group("xmin"))
+        ymin = int(m.group("ymin"))
+
+        obj_path = os.path.join(swapped_dir, filename)
+        obj_rgba = Image.open(obj_path).convert("RGBA")
+
+        temp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+
+        # Paste cropped object images at abs image coords
+        temp.paste(obj_rgba, (xmin, ymin), obj_rgba)
+
+        # Composite onto final image
+        final_img = Image.alpha_composite(final_img, temp)
+
+    # Save final image
+    save_path = os.path.join(save_dir, f"final_output_{index}.png")
+    final_img.save(save_path, format="PNG")
+
+    print(f"Final composited image saved to {save_path}")
+
 ### MAIN ###
 
 weights = MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT
@@ -59,8 +105,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
-img1_name = "wolf.png"
-img2_name = "kitty.png"
+img1_name = "cake2.png"
+img2_name = "cow.png"
 
 img1 = Image.open(img1_name).convert("RGB")
   
@@ -232,22 +278,33 @@ os.makedirs(swapped_img2_dir, exist_ok=True)
 
 swapping(obj2, obj1, crop_dir2, crop_dir1, final_matches2, swapped_img2_dir)
 
+### Pasting code 
 
+### Jase code ###
+# Make a directory for final pasted images
+final_dir = f"final_pasted_images"
+os.makedirs(final_dir, exist_ok=True)
+
+pasting(swapped_img1_dir, final_dir, 1)
+pasting(swapped_img2_dir, final_dir, 2)
+
+"""
+### Patty code ###
 # Stitching the images together. As of rn, this is all hardcoded.
-os.makedirs("final_pasted_images", exist_ok=True);
-homeDirectory = os.getcwd();
+os.makedirs("final_pasted_images", exist_ok=True)
+homeDirectory = os.getcwd()
 
-swappedDirectories = [];
+swappedDirectories = []
 for file in os.listdir(homeDirectory):
     fullPath = os.path.join(homeDirectory, file)
     #Check if it's a directory and that it starts with "swapped_img"
     if os.path.isdir(fullPath) and file.startswith("swapped_img"):
-        swappedDirectories.append(file);
+        swappedDirectories.append(file)
 
 #print(swappedDirectories);
 
-FINAL_IMG_DIRECTORY_NAME = "final_pasted_images";
-rcnn_clip.Copying(swappedDirectories, FINAL_IMG_DIRECTORY_NAME);
+FINAL_IMG_DIRECTORY_NAME = "final_pasted_images"
+rcnn_clip.Copying(swappedDirectories, FINAL_IMG_DIRECTORY_NAME)
 
 # finalBackgrounds = [];
 # finalImages = [];
@@ -265,3 +322,4 @@ rcnn_clip.Copying(swappedDirectories, FINAL_IMG_DIRECTORY_NAME);
 
 # for i in range(len(finalBackgrounds)):
 #     rcnn_clip.CopyImageOntoBackground(finalImages[i], finalBackgrounds[i], finalImgNames[i]);
+"""
