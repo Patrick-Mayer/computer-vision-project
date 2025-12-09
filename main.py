@@ -46,7 +46,7 @@ def swapping(first_objs, sec_objs, first_crops, sec_crops, match_list, save_dir)
 
         result.save(os.path.join(save_dir, first_objs))
 
-# 
+# Regex for bounding box dimensions
 box_reg = re.compile(
     r".*_x(?P<xmin>\d+)_y(?P<ymin>\d+)_x(?P<xmax>\d+)_y(?P<ymax>\d+)_\d+\.png"
 )
@@ -67,8 +67,9 @@ def pasting(swapped_dir, save_dir, index):
             continue
 
         m = box_reg.match(filename)
+
         if not m:
-            print(f"Skipping (no bbox): {filename}")
+            print(f"Skipping since no bbox: {filename}")
             continue
 
         xmin = int(m.group("xmin"))
@@ -89,8 +90,6 @@ def pasting(swapped_dir, save_dir, index):
     save_path = os.path.join(save_dir, f"final_output_{index}.png")
     final_img.save(save_path, format="PNG")
 
-    print(f"Final composited image saved to {save_path}")
-
 ### MAIN ###
 
 weights = MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT
@@ -105,8 +104,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
-img1_name = "cake2.png"
-img2_name = "cow.png"
+img1_name = "pink_cake.png"
+img2_name = "wolf.png"
 
 img1 = Image.open(img1_name).convert("RGB")
   
@@ -278,48 +277,11 @@ os.makedirs(swapped_img2_dir, exist_ok=True)
 
 swapping(obj2, obj1, crop_dir2, crop_dir1, final_matches2, swapped_img2_dir)
 
-### Pasting code 
+### Pasting code ###
 
-### Jase code ###
 # Make a directory for final pasted images
 final_dir = f"final_pasted_images"
 os.makedirs(final_dir, exist_ok=True)
 
 pasting(swapped_img1_dir, final_dir, 1)
 pasting(swapped_img2_dir, final_dir, 2)
-
-"""
-### Patty code ###
-# Stitching the images together. As of rn, this is all hardcoded.
-os.makedirs("final_pasted_images", exist_ok=True)
-homeDirectory = os.getcwd()
-
-swappedDirectories = []
-for file in os.listdir(homeDirectory):
-    fullPath = os.path.join(homeDirectory, file)
-    #Check if it's a directory and that it starts with "swapped_img"
-    if os.path.isdir(fullPath) and file.startswith("swapped_img"):
-        swappedDirectories.append(file)
-
-#print(swappedDirectories);
-
-FINAL_IMG_DIRECTORY_NAME = "final_pasted_images"
-rcnn_clip.Copying(swappedDirectories, FINAL_IMG_DIRECTORY_NAME)
-
-# finalBackgrounds = [];
-# finalImages = [];
-# finalImgNames = ["final_pasted_images/FinalKitty.png"]; #.pngs
-
-
-# # dogBackground = Image.open("masked_objects_for_chihuahua.png/background.png").convert("RGB");
-# kittyBackground = Image.open("masked_objects_for_kitty.png/background.png").convert("RGB");
-# # wolfBackground = Image.open("masked_objects_for_wolf.png/background.png").convert("RGB");
-# # finalBackgrounds = [dogBackground, kittyBackground, wolfBackground];
-# finalBackgrounds.append(kittyBackground);
-
-# finalKitty = Image.open("swapped_img_kitty.png/cropped_mask_cat_1.png").convert("RGB");
-# finalImages.append(finalKitty);
-
-# for i in range(len(finalBackgrounds)):
-#     rcnn_clip.CopyImageOntoBackground(finalImages[i], finalBackgrounds[i], finalImgNames[i]);
-"""
