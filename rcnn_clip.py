@@ -77,6 +77,7 @@ def get_objs(og_width, og_height, preds, img, crop_dir, weights):
     obj_labels = []
     obj_files = []
 
+    # Iterate through each detected object
     for i in range(len(preds["boxes"])):
         label_name = weights.meta['categories'][preds["labels"][i].item()]
         mask, filename = apply_mask_and_save_refined(
@@ -129,16 +130,6 @@ def save_background(og_img, accumulated_mask_np, og_width, og_height, crop_dir):
 
     save_path = os.path.join(crop_dir, "background.png")
     cropped_background.save(save_path)
-
-def gather_imgs(crop_dir):
-    file_list = []
-    for item in os.listdir(crop_dir):
-        full_path = os.path.join(crop_dir, item)
-
-        if os.path.isfile(full_path):
-            file_list.append(item)
-
-    return file_list
 
 def encode_labels_as_text(labels, device, clip_model):
     text_tokens = clip.tokenize([f"a photo of a {lbl}" for lbl in labels]).to(device)

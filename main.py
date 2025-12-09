@@ -92,6 +92,7 @@ def pasting(swapped_dir, save_dir, index):
 
 ### MAIN ###
 
+# Fetch weights and mask R-CNN model
 weights = MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT
 detector = maskrcnn_resnet50_fpn_v2(weights=weights).eval()
 
@@ -101,33 +102,38 @@ transform = transforms.Compose([
 ])
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+# Fetch CLIP model
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
 img1_name = "pink_cake.png"
 img2_name = "wolf.png"
 
+# Make sure images are in RGB format
 img1 = Image.open(img1_name).convert("RGB")
-  
+# Folder for cropped object images
 crop_dir1 = f"masked_objects_for_{img1_name}"
 os.makedirs(crop_dir1, exist_ok=True)
 
 img2 = Image.open(img2_name).convert("RGB")
-
-#rcnn_clip.CopyImageOntoBackground(img2, img1, "WolfAndKitty.png");
-
 crop_dir2 = f"masked_objects_for_{img2_name}"
 os.makedirs(crop_dir2, exist_ok=True)
 
+# Save original image sizes
 og_width1, og_height1 = img1.size
 og_width2, og_height2 = img2.size
 
+# We need to do this to get predictions
 input_tensor1 = transform(img1).unsqueeze(0)
 input_tensor2 = transform(img2).unsqueeze(0)
 
+# Get predictions of what objects are in the images (object detection and segmentation)
 preds1 = rcnn_clip.get_predictions(input_tensor1, detector)
 preds2 = rcnn_clip.get_predictions(input_tensor2, detector)
 
+# Get cropped object images and their labels
+# We do this by using the object predictions from above
+# And croping the objects out of the original image using their masks
 obj_list1, labels1 = rcnn_clip.get_objs(og_width1, og_height1, preds1, img1, crop_dir1, weights)
 obj_list2, labels2 = rcnn_clip.get_objs(og_width2, og_height2, preds2, img2, crop_dir2, weights)
 
@@ -149,6 +155,7 @@ if len(obj_list1) > len(obj_list2):
     img1_name = img2_name
     img2_name = temp_img1_name
 
+# Encode labels as text embeddings using CLIP
 text_embs1 = rcnn_clip.encode_labels_as_text(labels1, device, clip_model)
 text_embs2 = rcnn_clip.encode_labels_as_text(labels2, device, clip_model)
 
@@ -176,6 +183,7 @@ for i, file1 in enumerate(obj_list1):
             sim_text = 0
         else:
             sim_text = (text_embs1[i] @ text_embs2[j]).item()
+        # Image score is weighted more than text score
         sim_combined = 0.6 * sim_img + 0.4 * sim_text # Adjust strength of img score vs text score
 
         similarity_list.append({
