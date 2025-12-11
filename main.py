@@ -106,8 +106,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 # Update test images
-img1_name = "pink_cake.png"
-img2_name = "wolf.png"
+img1_name = "example_images/pink_cake.png"
+img2_name = "example_images/wolf.png"
 
 # Make sure images are in RGB format
 img1 = Image.open(img1_name).convert("RGB")

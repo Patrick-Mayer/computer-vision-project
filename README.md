@@ -9,5 +9,10 @@ If the input images are lacking in similar objects, then the application should 
 There should be an option to only return one output image if the user so chooses. In that case, the input and filter image would need to be specified. 
 
 ## How to Run
+Install all libraries by running "pip install -r requirements.txt". You should be using a Python version 3.8 and above.
+
+You need install the CLIP library after installing the requirements.txt using "pip install git+https://github.com/openai/CLIP.git".
 
 To run the project, run main.py. When main.py is ran, it calls several functions defined in rcnn_clip.py.
+
+The outputs will be in a folder called "final_pasted_images"
