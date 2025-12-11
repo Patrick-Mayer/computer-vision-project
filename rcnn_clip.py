@@ -140,8 +140,13 @@ def encode_labels_as_text(labels, device, clip_model):
 
 def resolve_chain(target, reverse_matches):
     # Follow chain until reaching final unmatched object
+    visited = set()
     while target in reverse_matches:
+        if target in visited:
+            break
+        visited.add(target)
         target = reverse_matches[target]
+        
     return target
 
 def color_transfer(src_pil, tgt_pil):
